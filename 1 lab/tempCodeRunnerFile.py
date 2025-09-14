@@ -1,2 +1,2 @@
-GetAddress())
-        excel.Application.Run("SolverAdd", worksheet.Rang
+
+        worksheet.Cells(8, "A").Value = "Ингредиент C"
