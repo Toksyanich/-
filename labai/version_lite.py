@@ -53,16 +53,16 @@ class State:
 
 @dataclass
 class Stats:
-    iterations: int
+    iterations: int        # число итераций / развёртываний
     max_open: int
     open_end: int
     max_memory: int
+    # здесь — условное «время» в единицах работы (итерации)
     time_s: float
     path: Optional[List[State]]
 
 
 def bfs(start: State, goal: Tuple[int, ...]) -> Stats:
-    t0 = time.time()
     Q = deque([start])
     seen = {start.tiles}
     closed = set()
@@ -73,7 +73,8 @@ def bfs(start: State, goal: Tuple[int, ...]) -> Stats:
         s = Q.popleft()
         it += 1
         if s.tiles == goal:
-            return Stats(it, mo, len(Q), max(mm, len(Q)+len(closed)), time.time()-t0, s.path())
+            # time_s возвращаем как число итераций (вместо wall-clock)
+            return Stats(it, mo, len(Q), max(mm, len(Q)+len(closed)), float(it), s.path())
         closed.add(s.tiles)
         for n in s.expand():
             if n.tiles not in seen and n.tiles not in closed:
@@ -81,11 +82,10 @@ def bfs(start: State, goal: Tuple[int, ...]) -> Stats:
                 seen.add(n.tiles)
         mo = max(mo, len(Q))
         mm = max(mm, len(Q)+len(closed))
-    return Stats(it, mo, len(Q), mm, time.time()-t0, None)
+    return Stats(it, mo, len(Q), mm, float(it), None)
 
 
 def dfs(start: State, goal: Tuple[int, ...]) -> Stats:
-    t0 = time.time()
     S = [start]
     seen = {start.tiles}
     closed = set()
@@ -96,20 +96,20 @@ def dfs(start: State, goal: Tuple[int, ...]) -> Stats:
         s = S.pop()
         it += 1
         if s.tiles == goal:
-            return Stats(it, mo, len(S), max(mm, len(S)+len(closed)), time.time()-t0, s.path())
+            return Stats(it, mo, len(S), max(mm, len(S)+len(closed)), float(it), s.path())
         closed.add(s.tiles)
+        # reversed to keep deterministic order for DFS
         for n in reversed(s.expand()):
             if n.tiles not in closed and n.tiles not in seen:
                 S.append(n)
                 seen.add(n.tiles)
         mo = max(mo, len(S))
         mm = max(mm, len(S)+len(closed))
-    return Stats(it, mo, len(S), mm, time.time()-t0, None)
+    return Stats(it, mo, len(S), mm, float(it), None)
 
 
 def iddfs(start: State, goal: Tuple[int, ...], limit=20) -> Stats:
-    t0 = time.time()
-    total = 0
+    total = 0   # число развёртываний (вызовов dls)
     mo = 0
     mm = 0
     found = None
@@ -132,10 +132,13 @@ def iddfs(start: State, goal: Tuple[int, ...], limit=20) -> Stats:
         mo = max(mo, len(pathset))
         mm = max(mm, len(pathset))
         return False
+
     for l in range(limit+1):
+        # pathset содержит текущее состояние пути (чтобы избежать циклов)
         if dls(start, 0, l, {start.tiles}):
-            return Stats(total, mo, 0, mm, time.time()-t0, found.path())
-    return Stats(total, mo, 0, mm, time.time()-t0, None)
+            # возвращаем total как «время» — число развёртываний
+            return Stats(total, mo, 0, mm, float(total), found.path())
+    return Stats(total, mo, 0, mm, float(total), None)
 
 
 class App:
@@ -175,6 +178,9 @@ class App:
             return
         r, c = state.rows, state.cols
         w, h = cv.winfo_width(), cv.winfo_height()
+        # Защита от нулевого размера (пока окно не показано)
+        if w <= 1 or h <= 1:
+            w, h = 300, 300
         cw, ch = w/c, h/r
         rad = min(cw, ch)*0.4
         for i in range(r):
@@ -223,17 +229,19 @@ class App:
             else:
                 st = iddfs(self.start, self.goal.tiles)
             self.solution = st.path
+            # показываем статистику в основном потоке
             self.root.after(0, lambda: self.show_stats(alg, st))
         self.search_thread = threading.Thread(target=work, daemon=True)
         self.search_thread.start()
 
     def show_stats(self, alg, st: Stats):
         self.write(f"{alg} завершён")
-        self.write(f"Итераций: {st.iterations}")
+        self.write(f"Итераций / развёртываний: {st.iterations}")
         self.write(f"Макс. узлов в O: {st.max_open}")
         self.write(f"Узлов в O при завершении: {st.open_end}")
         self.write(f"Макс. (O+C): {st.max_memory}")
-        self.write(f"Время: {st.time_s:.3f} c")
+        # пояснение: время в единицах работы (итерации), а не секунды
+        self.write(f"Время (в условных единицах — итерации): {st.time_s:.0f}")
         if st.path:
             self.write(f"Длина пути: {len(st.path)-1}")
         else:
@@ -249,6 +257,7 @@ class App:
 
         def anim():
             for s in self.solution:
+                # обновляем GUI через главный поток
                 self.root.after(0, lambda st=s: self.draw(self.canvas_cur, st))
                 time.sleep(0.5)
         self.anim_thread = threading.Thread(target=anim, daemon=True)
