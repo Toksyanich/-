@@ -7,6 +7,9 @@ import time
 from dataclasses import dataclass
 from typing import Tuple, List, Optional
 
+# Импортируем A* алгоритмы
+from astar_search import astar_h1, astar_h2, State
+
 
 class State:
     def __init__(self, tiles: Tuple[int, ...], rows: int, cols: int,
@@ -57,9 +60,9 @@ class Stats:
     max_open: int
     open_end: int
     max_memory: int
-    # здесь — условное «время» в единицах работы (итерации)
     time_s: float
     path: Optional[List[State]]
+    heuristic_name: str = ""
 
 
 def bfs(start: State, goal: Tuple[int, ...]) -> Stats:
@@ -73,7 +76,6 @@ def bfs(start: State, goal: Tuple[int, ...]) -> Stats:
         s = Q.popleft()
         it += 1
         if s.tiles == goal:
-            # time_s возвращаем как число итераций (вместо wall-clock)
             return Stats(it, mo, len(Q), max(mm, len(Q)+len(closed)), float(it), s.path())
         closed.add(s.tiles)
         for n in s.expand():
@@ -98,7 +100,6 @@ def dfs(start: State, goal: Tuple[int, ...]) -> Stats:
         if s.tiles == goal:
             return Stats(it, mo, len(S), max(mm, len(S)+len(closed)), float(it), s.path())
         closed.add(s.tiles)
-        # reversed to keep deterministic order for DFS
         for n in reversed(s.expand()):
             if n.tiles not in closed and n.tiles not in seen:
                 S.append(n)
@@ -109,7 +110,7 @@ def dfs(start: State, goal: Tuple[int, ...]) -> Stats:
 
 
 def iddfs(start: State, goal: Tuple[int, ...], limit=20) -> Stats:
-    total = 0   # число развёртываний (вызовов dls)
+    total = 0
     mo = 0
     mm = 0
     found = None
@@ -134,9 +135,7 @@ def iddfs(start: State, goal: Tuple[int, ...], limit=20) -> Stats:
         return False
 
     for l in range(limit+1):
-        # pathset содержит текущее состояние пути (чтобы избежать циклов)
         if dls(start, 0, l, {start.tiles}):
-            # возвращаем total как «время» — число развёртываний
             return Stats(total, mo, 0, mm, float(total), found.path())
     return Stats(total, mo, 0, mm, float(total), None)
 
@@ -149,22 +148,40 @@ class App:
         self.solution = None
         self.search_thread = None
         self.anim_thread = None
+
         f = ttk.Frame(root)
         f.pack(side='left', fill='y', padx=5, pady=5)
+
         ttk.Button(f, text="Загрузить файл", command=self.load_file).grid(
             row=0, column=0, columnspan=2, pady=5)
+
+        # Слепой поиск
+        ttk.Label(f, text="Слепой поиск:", font=('Arial', 9, 'bold')).grid(
+            row=1, column=0, columnspan=2, sticky='w')
         ttk.Button(f, text="BFS", command=lambda: self.run_search(
-            'BFS')).grid(row=1, column=0, columnspan=2)
+            'BFS')).grid(row=2, column=0, columnspan=2)
         ttk.Button(f, text="DFS", command=lambda: self.run_search(
-            'DFS')).grid(row=2, column=0, columnspan=2)
+            'DFS')).grid(row=3, column=0, columnspan=2)
         ttk.Button(f, text="IDDFS", command=lambda: self.run_search(
-            'IDDFS')).grid(row=3, column=0, columnspan=2)
+            'IDDFS')).grid(row=4, column=0, columnspan=2)
+
+        # Информированный поиск (A*)
+        ttk.Label(f, text="Информированный поиск (A*):", font=('Arial', 9, 'bold')).grid(
+            row=5, column=0, columnspan=2, sticky='w', pady=(10, 0))
+        ttk.Button(f, text="A* (h1)", command=lambda: self.run_search(
+            'A*_H1')).grid(row=6, column=0)
+        ttk.Button(f, text="A* (h2)", command=lambda: self.run_search(
+            'A*_H2')).grid(row=6, column=1)
+
         ttk.Button(f, text="Показать анимацию", command=self.show_animation).grid(
-            row=4, column=0, columnspan=2, pady=5)
-        self.log = tk.Text(f, width=45, height=18)
-        self.log.grid(row=5, column=0, columnspan=2)
+            row=7, column=0, columnspan=2, pady=5)
+
+        self.log = tk.Text(f, width=50, height=22)
+        self.log.grid(row=8, column=0, columnspan=2)
+
         self.canvas_cur = tk.Canvas(root, width=300, height=300, bg="#b22222")
         self.canvas_cur.pack(side='left', padx=5)
+
         self.canvas_goal = tk.Canvas(root, width=300, height=300, bg="#333")
         self.canvas_goal.pack(side='left', padx=5)
 
@@ -178,7 +195,6 @@ class App:
             return
         r, c = state.rows, state.cols
         w, h = cv.winfo_width(), cv.winfo_height()
-        # Защита от нулевого размера (пока окно не показано)
         if w <= 1 or h <= 1:
             w, h = 300, 300
         cw, ch = w/c, h/r
@@ -186,7 +202,7 @@ class App:
         for i in range(r):
             for j in range(c):
                 idx = i*c+j
-                if state.tiles[idx] == 1:  # только наличие шара
+                if state.tiles[idx] == 1:
                     x = j*cw+cw/2
                     y = i*ch+ch/2
                     cv.create_oval(x-rad, y-rad, x+rad, y+rad,
@@ -207,6 +223,7 @@ class App:
             for ln in rows:
                 vals.extend([1 if x in ('1', '*') else 0 for x in ln.split()])
             return tuple(vals)
+
         self.start = State(parse(start_rows), r, c)
         self.goal = State(parse(goal_rows), r, c)
         self.draw(self.canvas_cur, self.start)
@@ -226,26 +243,35 @@ class App:
                 st = bfs(self.start, self.goal.tiles)
             elif alg == 'DFS':
                 st = dfs(self.start, self.goal.tiles)
-            else:
+            elif alg == 'IDDFS':
                 st = iddfs(self.start, self.goal.tiles)
+            elif alg == 'A*_H1':
+                st = astar_h1(self.start, self.goal.tiles)
+            elif alg == 'A*_H2':
+                st = astar_h2(self.start, self.goal.tiles)
+
             self.solution = st.path
-            # показываем статистику в основном потоке
             self.root.after(0, lambda: self.show_stats(alg, st))
+
         self.search_thread = threading.Thread(target=work, daemon=True)
         self.search_thread.start()
 
     def show_stats(self, alg, st: Stats):
-        self.write(f"{alg} завершён")
+        self.write("\n" + "="*45)
+        if st.heuristic_name:
+            self.write(f"{st.heuristic_name} завершён")
+        else:
+            self.write(f"{alg} завершён")
         self.write(f"Итераций / развёртываний: {st.iterations}")
         self.write(f"Макс. узлов в O: {st.max_open}")
         self.write(f"Узлов в O при завершении: {st.open_end}")
         self.write(f"Макс. (O+C): {st.max_memory}")
-        # пояснение: время в единицах работы (итерации), а не секунды
-        self.write(f"Время (в условных единицах — итерации): {st.time_s:.0f}")
+        self.write(f"Время (условные единицы): {st.time_s:.0f}")
         if st.path:
             self.write(f"Длина пути: {len(st.path)-1}")
         else:
             self.write("Решение не найдено")
+        self.write("="*45)
 
     def show_animation(self):
         if not self.solution:
@@ -257,15 +283,15 @@ class App:
 
         def anim():
             for s in self.solution:
-                # обновляем GUI через главный поток
                 self.root.after(0, lambda st=s: self.draw(self.canvas_cur, st))
                 time.sleep(0.5)
+
         self.anim_thread = threading.Thread(target=anim, daemon=True)
         self.anim_thread.start()
 
 
 if __name__ == "__main__":
     tk_root = tk.Tk()
-    tk_root.title("Повороты одинаковых шариков")
+    tk_root.title("Повороты одинаковых шариков - ЛР №1,2,3")
     App(tk_root)
     tk_root.mainloop()

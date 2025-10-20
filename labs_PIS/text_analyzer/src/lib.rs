@@ -34,7 +34,7 @@ mod tests {
     // --- Тесты для функции count_words ---
     #[test]
     fn test_count_words_simple() {
-        assert_eq!(count_words("hello world from rust"), 4);
+        assert_eq!(count_words("hello world from rust pivo"), 4);
     }
 
     #[test]
