@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from itertools import combinations
 
 print("="*80)
 print("ЛАБОРАТОРНАЯ РАБОТА №3: МЕТОДЫ ПРИНЯТИЯ РЕШЕНИЙ")
@@ -46,7 +45,7 @@ def pareto_dominates(x1, x2):
 def find_pareto_set(data):
     """Находит множество Парето"""
     n = len(data)
-    pareto_mask = np.ones(n, dtype=bool)
+    pareto_mask = np.ones(n, dtype=bool)  # Маска true для всех альтернатив
 
     for i in range(n):
         if not pareto_mask[i]:
@@ -290,6 +289,7 @@ for j in range(len(criteria_25)):
         data_transformed[:, j] = -data_transformed[:, j]
 
 # Нормировка: (x - min) / (max - min)
+# f_norm = (f_current - f_min) / (f_max - f_min)
 data_normalized = np.zeros_like(data_transformed)
 for j in range(len(criteria_25)):
     min_val = data_transformed[:, j].min()
@@ -312,11 +312,13 @@ print("-"*80)
 
 # 3.1 Аддитивная свертка
 print("\n--- 3.1. Аддитивная свертка ---")
+# W_add(x) = Σ (wᵢ * f_normᵢ)
 W_add = np.sum(weights * data_normalized, axis=1)
 print("\nW_add(x_i):")
 for alt, val in zip(alternatives_25, W_add):
     print(f"  {alt}: {val:.4f}")
 
+# находит индекс максимального значения, т.е. лучшую альтернативу
 best_add = alternatives_25[np.argmax(W_add)]
 print(
     f"\nЛучшая альтернатива (аддитивная свертка): {best_add} = {W_add.max():.4f}")
@@ -325,7 +327,7 @@ print(
 print("\n--- 3.2. Мультипликативная свертка ---")
 # Избегаем нулей, добавляя малое число
 data_mult = data_normalized + 1e-10
-W_mult = np.prod(data_mult ** weights, axis=1)
+W_mult = np.prod(data_mult ** weights, axis=1)  # W_mult(x) = Π (f_normᵢ ^ wᵢ)
 print("\nW_mult(x_i):")
 for alt, val in zip(alternatives_25, W_mult):
     print(f"  {alt}: {val:.4f}")
@@ -348,6 +350,7 @@ print("\nОтклонения от идеала:")
 print(df_deviation.round(3))
 
 # Взвешенное расстояние
+# Используется евклидово расстояние а не манхэттенское
 W_ideal = np.sqrt(np.sum(weights * (data_deviation ** 2), axis=1))
 print("\nW_ideal(x_i) (минимизируется):")
 for alt, val in zip(alternatives_25, W_ideal):
@@ -357,7 +360,8 @@ best_ideal = alternatives_25[np.argmin(W_ideal)]
 print(
     f"\nЛучшая альтернатива (расстояние до идеала): {best_ideal} = {W_ideal.min():.4f}")
 
-# Проверка Парето-оптимальности
+# Проверка Парето-оптимальности Самопроверка
+print("Самопроверка")
 print("\n" + "-"*80)
 print("ПРОВЕРКА ПАРЕТО-ОПТИМАЛЬНОСТИ РЕШЕНИЙ")
 print("-"*80)
