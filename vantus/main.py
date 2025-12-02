@@ -138,12 +138,6 @@ class Agent:
         self.knowledge_base = []
         self.visited = set()  # Где был
         self.visited.add((start_x, start_y))
-        # self.tell_kb(sp.Not(self.get_symbol("pit", start_x, start_y)))
-        # elf.tell_kb(sp.Not(self.get_symbol("vantus", start_x, start_y)))
-
-        self.safe_cells = set()  # Куда точно можно
-        # self.run()
-        # self.step()
 
     def get_symbol(self, name, x, y):
         return sp.Symbol(f"{name}_{x}_{y}")
@@ -153,7 +147,6 @@ class Agent:
         self.knowledge_base.append(formula)
 
     def ask_kb_is_safe(self, target_x, target_y):
-        # Метод от противного
         # Проверка на яму
         pit_sym = self.get_symbol("pit", target_x, target_y)
         full_kb = sp.And(*self.knowledge_base)
@@ -166,7 +159,7 @@ class Agent:
         if sp.satisfiable(full_kb & vantus_sym):
             return False
 
-        return True  # если оба варинта предыдущие вернули => True
+        return True
 
     def get_neighbors(self, x, y):
 
@@ -264,7 +257,7 @@ class Agent:
             if result is False:
                 print("Игра окончена!")
                 break
-            time.sleep(3)
+            time.sleep(1)
         if steps >= steps_limit:
             print("Превышен лимит шагов!")
 
