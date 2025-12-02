@@ -232,7 +232,8 @@ class Agent:
             print(f"Иду в новую клетку: {next_move}")
         elif safe_moves:
             # Если новых нет идем назад в любую безопасную
-            next_move = safe_moves[0]
+            # сделал рандом, чтобы не уходить в цикл при 1 безопасной клетке
+            next_move = random.choice(safe_moves)
             print(f"Новых безопасных нет, иду назад/в старую: {next_move}")
         else:
             print("ТУПИК! Рисковать не буду. Делаю Харакири. The End!!.")
@@ -245,7 +246,7 @@ class Agent:
 
     def run(self):
         print("Начинаю игру...")
-        steps_limit = 30
+        steps_limit = 20
         steps = 0
         while steps < steps_limit:
             steps += 1
