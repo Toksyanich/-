@@ -63,6 +63,7 @@ class WumpusGUI:
         self.agent = main.Agent(self.world, 0, 0, self.rows, self.cols)
         self.is_running = False
         self.game_over = False
+        self.suicide_pos = None
         self.status_var.set("Новая игра началась.")
         self.draw_grid()
 
@@ -79,7 +80,8 @@ class WumpusGUI:
             "pit": "icons/pit.png",
             "gold": "icons/gold.png",
             "wind": "icons/wind.png",
-            "stink": "icons/stench.png"
+            "stink": "icons/stench.png",
+            "victory": "icons/victory.png"
         }
 
         for key, filename in image_files.items():
@@ -114,10 +116,17 @@ class WumpusGUI:
                 is_visible = ((x, y) in self.agent.visited) or self.game_over
 
                 # 1. Рисуем фон
-                if is_visible:
+                # 1. Рисуем фон (С ИЗМЕНЕНИЯМИ ДЛЯ ХАРАКИРИ)
+                if (x, y) == self.suicide_pos:
+                    # Если это место самоубийства — КРАСНЫЙ
+                    self.canvas.create_rectangle(
+                        x1, y1, x2, y2, fill="#ff4d4d", outline="black")
+                elif is_visible:
+                    # Если обычная посещенная — БЕЛЫЙ
                     self.canvas.create_rectangle(
                         x1, y1, x2, y2, fill=COLOR_VISITED, outline="#ccc")
                 else:
+                    # Если не видно — ТЕМНЫЙ
                     self.canvas.create_rectangle(
                         x1, y1, x2, y2, fill=COLOR_UNKNOWN, outline="black")
 
@@ -177,15 +186,27 @@ class WumpusGUI:
 
                 # 3. АГЕНТ (Рисуем только если игра идет, или на последней позиции)
                 if self.agent.x == x and self.agent.y == y:
-                    if self.icons["agent"]:
+
+                    # Проверяем, нашел ли он золото
+                    # (Есть блеск/золото в текущей клетке)
+                    cell_content = real_map[x][y]
+                    found_gold = "gold" in cell_content and "shine" in cell_content
+
+                    if found_gold and self.icons["victory"]:
+                        # === РИСУЕМ THE WEEKND НА ВСЮ КЛЕТКУ ===
+                        # cx, cy - это центр клетки, картинка ляжет ровно по центру
                         self.canvas.create_image(
-                            cx, cy, image=self.icons["agent"])
+                            cx, cy, image=self.icons["victory"])
                     else:
-                        self.canvas.create_oval(
-                            x1+30, y1+30, x2-30, y2-30, fill="blue", outline="white", width=2)
-                        self.canvas.create_text(
-                            cx, y2-10, text="YOU", fill="blue")
-                        я
+                        # Обычная отрисовка агента
+                        if self.icons["agent"]:
+                            self.canvas.create_image(
+                                cx, cy, image=self.icons["agent"])
+                        else:
+                            self.canvas.create_oval(
+                                x1+30, y1+30, x2-30, y2-30, fill="blue", outline="white", width=2)
+                            self.canvas.create_text(
+                                cx, y2-10, text="YOU", fill="blue")
 
     def do_step(self):
         if self.game_over:
@@ -205,7 +226,15 @@ class WumpusGUI:
         if result is False:
             self.game_over = True
             self.is_running = False
+            # --- ПРОВЕРКА НА ХАРАКИРИ ---
+            cell = self.world.get_world()[self.agent.x][self.agent.y]
+            # Если в клетке нет смерти (ямы/вантуса) и нет победы (золота), значит это тупик
+            is_death = "pit" in cell or "vantus" in cell
+            is_win = "gold" in cell and "shine" in cell
 
+            if not is_death and not is_win:
+                # Запоминаем место харакири
+                self.suicide_pos = (self.agent.x, self.agent.y)
             # Сначала перерисуем поле, чтобы открыть карту (благодаря self.game_over = True)
             self.draw_grid()
 
