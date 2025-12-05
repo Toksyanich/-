@@ -253,7 +253,7 @@ class WumpusGUI:
             messagebox.showerror("Game Over", "Агента съел Вантус.")
         else:
             messagebox.showwarning(
-                "Стоп", "Агент зашел в тупик и сделал харакири.")
+                "Стоп", "Нервы сдали. Агент сделал харакири!")
 
     def auto_play(self):
         if self.game_over:
@@ -269,8 +269,8 @@ class WumpusGUI:
 
 def main_gui():
     root = tk.Tk()
-    ROWS = 7
-    COLS = 7
+    ROWS = 5
+    COLS = 5
     PROB = 0.2
     app = WumpusGUI(root, ROWS, COLS, PROB)
     root.mainloop()
