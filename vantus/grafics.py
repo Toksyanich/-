@@ -16,6 +16,9 @@ class WumpusGUI:
         self.cols = cols
         self.prob = prob  # Сохраняем вероятность для рестарта
 
+        # Начальная скорость (задержка в мс): 500мс = 0.5 сек
+        self.speed_delay = 500
+
         self.master.title("Wumpus World AI")
 
         # Загрузка иконок
@@ -32,7 +35,7 @@ class WumpusGUI:
         self.panel = tk.Frame(master, bg="#e0e0e0")
         self.panel.pack(side=tk.RIGHT, fill=tk.Y, expand=True)
 
-        # --- КНОПКИ ---
+        # --- КНОПКИ УПРАВЛЕНИЯ ---
         tk.Label(self.panel, text="Меню", bg="#e0e0e0", font=(
             "Arial", 14, "bold")).pack(pady=10, padx=20)
 
@@ -44,10 +47,32 @@ class WumpusGUI:
                                  command=self.auto_play, width=15, height=2, bg="lightgreen")
         self.btn_run.pack(pady=5)
 
-        # !!! НОВАЯ КНОПКА ПАУЗЫ !!!
         self.btn_pause = tk.Button(
-            self.panel, text="Пауза", command=self.toggle_pause, width=15, height=2, bg="#FFD700")  # Золотой цвет
+            self.panel, text="Пауза", command=self.toggle_pause, width=15, height=2, bg="#FFD700")
         self.btn_pause.pack(pady=5)
+
+        # --- БЛОК СКОРОСТИ ---
+        tk.Label(self.panel, text="Скорость (мс)", bg="#e0e0e0",
+                 font=("Arial", 10)).pack(pady=(15, 0))
+
+        speed_frame = tk.Frame(self.panel, bg="#e0e0e0")
+        speed_frame.pack(pady=5)
+
+        # Кнопка Медленнее
+        self.btn_slow = tk.Button(
+            speed_frame, text="<<", command=self.decrease_speed, width=5)
+        self.btn_slow.pack(side=tk.LEFT, padx=2)
+
+        # Отображение текущей задержки
+        self.lbl_speed = tk.Label(
+            speed_frame, text=f"{self.speed_delay}", bg="white", width=6, relief="sunken")
+        self.lbl_speed.pack(side=tk.LEFT, padx=2)
+
+        # Кнопка Быстрее
+        self.btn_fast = tk.Button(
+            speed_frame, text=">>", command=self.increase_speed, width=5)
+        self.btn_fast.pack(side=tk.LEFT, padx=2)
+        # ---------------------
 
         self.btn_restart = tk.Button(
             self.panel, text="Рестарт", command=self.reset_game, width=15, height=2, bg="salmon")
@@ -70,9 +95,7 @@ class WumpusGUI:
         self.suicide_pos = None
         self.status_var.set("Новая игра началась.")
 
-        # Сбрасываем кнопку паузы в исходное состояние
         self.btn_pause.config(text="Пауза", bg="#FFD700", state=tk.NORMAL)
-
         self.draw_grid()
 
     def reset_game(self):
@@ -80,8 +103,24 @@ class WumpusGUI:
         self.is_running = False
         self.start_new_game()
 
+    # --- УПРАВЛЕНИЕ СКОРОСТЬЮ ---
+    def decrease_speed(self):
+        """Увеличиваем задержку (медленнее)"""
+        if self.speed_delay < 2000:
+            self.speed_delay += 100
+            self.lbl_speed.config(text=f"{self.speed_delay}")
+
+    def increase_speed(self):
+        """Уменьшаем задержку (быстрее)"""
+        if self.speed_delay > 50:  # Минимум 50мс
+            self.speed_delay -= 100
+            if self.speed_delay < 50:
+                self.speed_delay = 50
+            self.lbl_speed.config(text=f"{self.speed_delay}")
+    # ----------------------------
+
     def load_assets(self):
-        """Загрузка картинок (Надежный способ)"""
+        """Загрузка картинок"""
         base_dir = os.path.dirname(os.path.abspath(__file__))
         icons_dir = os.path.join(base_dir, "icons")
 
@@ -119,10 +158,8 @@ class WumpusGUI:
                 cx = x1 + CELL_SIZE // 2
                 cy = y1 + CELL_SIZE // 2
 
-                # --- ЛОГИКА ОТОБРАЖЕНИЯ ---
                 is_visible = ((x, y) in self.agent.visited) or self.game_over
 
-                # 1. Рисуем фон
                 if (x, y) == self.suicide_pos:
                     self.canvas.create_rectangle(
                         x1, y1, x2, y2, fill="#ff4d4d", outline="black")
@@ -133,7 +170,6 @@ class WumpusGUI:
                     self.canvas.create_rectangle(
                         x1, y1, x2, y2, fill=COLOR_UNKNOWN, outline="black")
 
-                # 2. Рисуем содержимое
                 if is_visible:
                     cell = real_map[x][y]
 
@@ -161,7 +197,6 @@ class WumpusGUI:
                             self.canvas.create_rectangle(
                                 x1+15, y1+15, x2-15, y2-15, fill="red")
 
-                    # СЕНСОРЫ
                     if "wind" in cell:
                         if self.icons["wind"]:
                             self.canvas.create_image(
@@ -178,7 +213,6 @@ class WumpusGUI:
                             self.canvas.create_text(
                                 x2-20, y1+20, text="SS", fill="green")
 
-                # 3. АГЕНТ
                 if self.agent.x == x and self.agent.y == y:
                     cell_content = real_map[x][y]
                     found_gold = "gold" in cell_content and "shine" in cell_content
@@ -210,8 +244,6 @@ class WumpusGUI:
         if result is False:
             self.game_over = True
             self.is_running = False
-
-            # Если игра окончена, блокируем кнопку паузы
             self.btn_pause.config(state=tk.DISABLED)
 
             cell = self.world.get_world()[self.agent.x][self.agent.y]
@@ -236,29 +268,22 @@ class WumpusGUI:
             messagebox.showerror("Game Over", "Агента съел Вантус.")
         else:
             messagebox.showwarning(
-                "Game Over", "Нервы сдали. Агент сделал харакири!")
-
-    # --- НОВАЯ ЛОГИКА ПАУЗЫ И ЗАПУСКА ---
+                "Стоп", "Агент зашел в тупик и сделал харакири.")
 
     def auto_play(self):
         if self.game_over:
             return
-        # При нажатии Авто-игры включаем бег и ставим кнопку в режим "Пауза"
         self.is_running = True
         self.btn_pause.config(text="Пауза", bg="#FFD700")
         self.run_loop()
 
     def toggle_pause(self):
-        """Переключатель Пауза / Продолжить"""
         if self.game_over:
             return
-
         if self.is_running:
-            # Если бежали -> ОСТАНАВЛИВАЕМСЯ
             self.is_running = False
             self.btn_pause.config(text="Продолжить", bg="lightgreen")
         else:
-            # Если стояли -> ЗАПУСКАЕМСЯ
             self.is_running = True
             self.btn_pause.config(text="Пауза", bg="#FFD700")
             self.run_loop()
@@ -266,14 +291,14 @@ class WumpusGUI:
     def run_loop(self):
         if self.is_running and not self.game_over:
             self.do_step()
-            # Скорость 0.5 сек (500 мс)
-            self.master.after(500, self.run_loop)
+            # ТЕПЕРЬ ЗАДЕРЖКА БЕРЕТСЯ ИЗ ПЕРЕМЕННОЙ
+            self.master.after(self.speed_delay, self.run_loop)
 
 
 def main_gui():
     root = tk.Tk()
-    ROWS = 3
-    COLS = 3
+    ROWS = 10
+    COLS = 10
     PROB = 0.2
     app = WumpusGUI(root, ROWS, COLS, PROB)
     root.mainloop()

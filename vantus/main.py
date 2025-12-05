@@ -258,7 +258,7 @@ class Agent:
         else:
             if self.stuck_count >= self.max_stuck_count:
                 print("Я застрял в безопасном круге! ПРИДЕТСЯ РИСКОВАТЬ!")
-            if random.random() < 0.1:
+            if random.random() < 0.01:
                 print("Нервы сдали. Агент сделал харакири!")
                 return False
             else:
@@ -305,7 +305,7 @@ def main():
     print("Hello from ВАНТУС!")
     x = 5
     y = 5
-    probability_of_pit = 0.2
+    probability_of_pit = 0.16
     world = WampusWorld(x,  y, probability_of_pit)
     agent = Agent(world, 0, 0, x, y)
     agent.run()
