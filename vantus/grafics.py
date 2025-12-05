@@ -44,7 +44,11 @@ class WumpusGUI:
                                  command=self.auto_play, width=15, height=2, bg="lightgreen")
         self.btn_run.pack(pady=5)
 
-        # !!! КНОПКА РЕСТАРТА ВЕРНУЛАСЬ !!!
+        # !!! НОВАЯ КНОПКА ПАУЗЫ !!!
+        self.btn_pause = tk.Button(
+            self.panel, text="Пауза", command=self.toggle_pause, width=15, height=2, bg="#FFD700")  # Золотой цвет
+        self.btn_pause.pack(pady=5)
+
         self.btn_restart = tk.Button(
             self.panel, text="Рестарт", command=self.reset_game, width=15, height=2, bg="salmon")
         self.btn_restart.pack(pady=20)
@@ -65,31 +69,37 @@ class WumpusGUI:
         self.game_over = False
         self.suicide_pos = None
         self.status_var.set("Новая игра началась.")
+
+        # Сбрасываем кнопку паузы в исходное состояние
+        self.btn_pause.config(text="Пауза", bg="#FFD700", state=tk.NORMAL)
+
         self.draw_grid()
 
     def reset_game(self):
         """Функция для кнопки Рестарт"""
-        self.is_running = False  # Остановить авто-игру если была
+        self.is_running = False
         self.start_new_game()
 
     def load_assets(self):
-        """Загрузка картинок"""
+        """Загрузка картинок (Надежный способ)"""
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        icons_dir = os.path.join(base_dir, "icons")
+
         image_files = {
-            "agent": "icons/agent.png",
-            "vantus": "icons/wumpus.png",
-            "pit": "icons/pit.png",
-            "gold": "icons/gold.png",
-            "wind": "icons/wind.png",
-            "stink": "icons/stench.png",
-            "victory": "icons/victory.png"
+            "agent": "agent.png",
+            "vantus": "wumpus.png",
+            "pit": "pit.png",
+            "gold": "gold.png",
+            "wind": "wind.png",
+            "stink": "stench.png",
+            "victory": "victory.png"
         }
 
         for key, filename in image_files.items():
-            if os.path.exists(filename):
+            full_path = os.path.join(icons_dir, filename)
+            if os.path.exists(full_path):
                 try:
-                    img = tk.PhotoImage(file=filename)
-                    # Если иконки слишком большие, можно уменьшить:
-                    # img = img.subsample(2, 2)
+                    img = tk.PhotoImage(file=full_path)
                     self.icons[key] = img
                 except Exception:
                     self.icons[key] = None
@@ -109,32 +119,24 @@ class WumpusGUI:
                 cx = x1 + CELL_SIZE // 2
                 cy = y1 + CELL_SIZE // 2
 
-                # --- ЛОГИКА ОТОБРАЖЕНИЯ (FOG OF WAR) ---
-                # Клетка видна, если:
-                # 1. Агент её посетил
-                # 2. ИЛИ Игра окончена (self.game_over == True)
+                # --- ЛОГИКА ОТОБРАЖЕНИЯ ---
                 is_visible = ((x, y) in self.agent.visited) or self.game_over
 
                 # 1. Рисуем фон
-                # 1. Рисуем фон (С ИЗМЕНЕНИЯМИ ДЛЯ ХАРАКИРИ)
                 if (x, y) == self.suicide_pos:
-                    # Если это место самоубийства — КРАСНЫЙ
                     self.canvas.create_rectangle(
                         x1, y1, x2, y2, fill="#ff4d4d", outline="black")
                 elif is_visible:
-                    # Если обычная посещенная — БЕЛЫЙ
                     self.canvas.create_rectangle(
                         x1, y1, x2, y2, fill=COLOR_VISITED, outline="#ccc")
                 else:
-                    # Если не видно — ТЕМНЫЙ
                     self.canvas.create_rectangle(
                         x1, y1, x2, y2, fill=COLOR_UNKNOWN, outline="black")
 
-                # 2. Рисуем содержимое (если клетка видна)
+                # 2. Рисуем содержимое
                 if is_visible:
                     cell = real_map[x][y]
 
-                    # ЯМА
                     if "pit" in cell:
                         if self.icons["pit"]:
                             self.canvas.create_image(
@@ -142,10 +144,7 @@ class WumpusGUI:
                         else:
                             self.canvas.create_oval(
                                 x1+10, y1+10, x2-10, y2-10, fill="black")
-                            self.canvas.create_text(
-                                cx, cy, text="PIT", fill="white")
 
-                    # ЗОЛОТО
                     if "gold" in cell:
                         if self.icons["gold"]:
                             self.canvas.create_image(
@@ -153,9 +152,7 @@ class WumpusGUI:
                         else:
                             self.canvas.create_oval(
                                 x1+20, y1+20, x2-20, y2-20, fill="gold")
-                            self.canvas.create_text(cx, cy, text="GOLD")
 
-                    # ВАНТУС
                     if "vantus" in cell:
                         if self.icons["vantus"]:
                             self.canvas.create_image(
@@ -163,10 +160,8 @@ class WumpusGUI:
                         else:
                             self.canvas.create_rectangle(
                                 x1+15, y1+15, x2-15, y2-15, fill="red")
-                            self.canvas.create_text(cx, cy, text="WUMPUS")
 
-                    # СЕНСОРЫ (Если это не конец игры, или просто хотим видеть карту полностью)
-                    # Ветер (слева сверху)
+                    # СЕНСОРЫ
                     if "wind" in cell:
                         if self.icons["wind"]:
                             self.canvas.create_image(
@@ -175,7 +170,6 @@ class WumpusGUI:
                             self.canvas.create_text(
                                 x1+20, y1+20, text="~~", fill="blue")
 
-                    # Вонь (справа сверху)
                     if "stink" in cell:
                         if self.icons["stink"]:
                             self.canvas.create_image(
@@ -184,29 +178,21 @@ class WumpusGUI:
                             self.canvas.create_text(
                                 x2-20, y1+20, text="SS", fill="green")
 
-                # 3. АГЕНТ (Рисуем только если игра идет, или на последней позиции)
+                # 3. АГЕНТ
                 if self.agent.x == x and self.agent.y == y:
-
-                    # Проверяем, нашел ли он золото
-                    # (Есть блеск/золото в текущей клетке)
                     cell_content = real_map[x][y]
                     found_gold = "gold" in cell_content and "shine" in cell_content
 
                     if found_gold and self.icons["victory"]:
-                        # === РИСУЕМ THE WEEKND НА ВСЮ КЛЕТКУ ===
-                        # cx, cy - это центр клетки, картинка ляжет ровно по центру
                         self.canvas.create_image(
                             cx, cy, image=self.icons["victory"])
                     else:
-                        # Обычная отрисовка агента
                         if self.icons["agent"]:
                             self.canvas.create_image(
                                 cx, cy, image=self.icons["agent"])
                         else:
                             self.canvas.create_oval(
-                                x1+30, y1+30, x2-30, y2-30, fill="blue", outline="white", width=2)
-                            self.canvas.create_text(
-                                cx, y2-10, text="YOU", fill="blue")
+                                x1+30, y1+30, x2-30, y2-30, fill="blue", width=2)
 
     def do_step(self):
         if self.game_over:
@@ -218,27 +204,24 @@ class WumpusGUI:
             print(f"Ошибка: {e}")
             result = False
 
-        # Обновляем инфо
         self.status_var.set(
             f"Позиция: [{self.agent.x}, {self.agent.y}]\nОщущения: {self.world.get_percepts(self.agent.x, self.agent.y)}")
 
-        # Если игра закончилась
         if result is False:
             self.game_over = True
             self.is_running = False
-            # --- ПРОВЕРКА НА ХАРАКИРИ ---
+
+            # Если игра окончена, блокируем кнопку паузы
+            self.btn_pause.config(state=tk.DISABLED)
+
             cell = self.world.get_world()[self.agent.x][self.agent.y]
-            # Если в клетке нет смерти (ямы/вантуса) и нет победы (золота), значит это тупик
             is_death = "pit" in cell or "vantus" in cell
             is_win = "gold" in cell and "shine" in cell
 
             if not is_death and not is_win:
-                # Запоминаем место харакири
                 self.suicide_pos = (self.agent.x, self.agent.y)
-            # Сначала перерисуем поле, чтобы открыть карту (благодаря self.game_over = True)
-            self.draw_grid()
 
-            # Потом покажем сообщение
+            self.draw_grid()
             self.show_end_message()
         else:
             self.draw_grid()
@@ -253,24 +236,44 @@ class WumpusGUI:
             messagebox.showerror("Game Over", "Агента съел Вантус.")
         else:
             messagebox.showwarning(
-                "Стоп", "Нервы сдали. Агент сделал харакири!")
+                "Game Over", "Нервы сдали. Агент сделал харакири!")
+
+    # --- НОВАЯ ЛОГИКА ПАУЗЫ И ЗАПУСКА ---
 
     def auto_play(self):
         if self.game_over:
             return
+        # При нажатии Авто-игры включаем бег и ставим кнопку в режим "Пауза"
         self.is_running = True
+        self.btn_pause.config(text="Пауза", bg="#FFD700")
         self.run_loop()
+
+    def toggle_pause(self):
+        """Переключатель Пауза / Продолжить"""
+        if self.game_over:
+            return
+
+        if self.is_running:
+            # Если бежали -> ОСТАНАВЛИВАЕМСЯ
+            self.is_running = False
+            self.btn_pause.config(text="Продолжить", bg="lightgreen")
+        else:
+            # Если стояли -> ЗАПУСКАЕМСЯ
+            self.is_running = True
+            self.btn_pause.config(text="Пауза", bg="#FFD700")
+            self.run_loop()
 
     def run_loop(self):
         if self.is_running and not self.game_over:
             self.do_step()
-            self.master.after(500, self.run_loop)  # Скорость 0.5 сек
+            # Скорость 0.5 сек (500 мс)
+            self.master.after(500, self.run_loop)
 
 
 def main_gui():
     root = tk.Tk()
-    ROWS = 5
-    COLS = 5
+    ROWS = 3
+    COLS = 3
     PROB = 0.2
     app = WumpusGUI(root, ROWS, COLS, PROB)
     root.mainloop()
