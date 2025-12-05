@@ -138,6 +138,11 @@ class Agent:
         self.knowledge_base = []
         self.visited = set()  # Где был
         self.visited.add((start_x, start_y))
+        self.stuck_count = 0
+        # Сам не додумался, но формула и теории задач о блуждании интересная( не зря в Т-банк пробовал решить её)
+        # Но это тоже мусор, так как у нас игра, а не теор вер
+        self.max_stuck_count = 3*(x*y)**0.5
+        print('asdddddddd', self.max_stuck_count)
 
     def get_symbol(self, name, x, y):
         return sp.Symbol(f"{name}_{x}_{y}")
@@ -175,6 +180,17 @@ class Agent:
 
     def step(self):
         print(f"---Я в {self.x}, {self.y}---")
+        real_cell = self.world.get_world()[self.x][self.y]
+
+        # Проверки на смерть
+        if "pit" in real_cell:
+            print("АААА! Агент упал в ЯМУ! Смерть.")
+            return False  # Игра окончена
+
+        if "vantus" in real_cell:
+            print("НЯМ-НЯМ! Агента съел ВАНТУС! Смерть.")
+            return False
+
         current_feelings = self.world.get_percepts(self.x, self.y)
         print(f"Чувствую: {current_feelings}")
 
@@ -217,27 +233,49 @@ class Agent:
             self.tell_kb(sp.Not(self.get_symbol("stink", self.x, self.y)))
         print("Думаю...")
         safe_moves = []
-        for i, j in neighbors:  # спрашиваем нас не убьет?
+        for i, j in neighbors:  # спрашиваем нас не убьет?)
             if self.ask_kb_is_safe(i, j):
                 safe_moves.append((i, j))
 
         print("Безопасные соседи:", safe_moves)
 
+        self.max_stuck_count = max(5, len(self.visited)*2)
         # Выбираем приоритет Непосещенные > Посещенные
         unvisited_safe = [m for m in safe_moves if m not in self.visited]
 
         if unvisited_safe:
             # Если есть новые безопасные клетки - идем в первую
             next_move = unvisited_safe[0]
+            self.stuck_count = 0  # понятие скуки, агент устал ходить туда сюда
             print(f"Иду в новую клетку: {next_move}")
-        elif safe_moves:
+        elif safe_moves and self.stuck_count < self.max_stuck_count:
             # Если новых нет идем назад в любую безопасную
             # сделал рандом, чтобы не уходить в цикл при 1 безопасной клетке
             next_move = random.choice(safe_moves)
-            print(f"Новых безопасных нет, иду назад/в старую: {next_move}")
+            self.stuck_count += 1  # ммм новые возможности
+            print(
+                f"Новых безопасных нет, иду назад ({self.stuck_count}/{self.max_stuck_count}): {next_move}")
         else:
-            print("ТУПИК! Рисковать не буду. Делаю Харакири. The End!!.")
-            return False
+            if self.stuck_count >= self.max_stuck_count:
+                print("Я застрял в безопасном круге! ПРИДЕТСЯ РИСКОВАТЬ!")
+            if random.random() < 0.1:
+                print("Нервы сдали. Агент сделал харакири!")
+                return False
+            else:
+                print("Безопасных нет! Придется рисковать...")
+                risky_unvisited = [
+                    n for n in neighbors if n not in self.visited]
+                if risky_unvisited:
+                    next_move = random.choice(risky_unvisited)
+                    print(
+                        f"!!!Кто не рисукет, тот не открывает сезон в Шерегеше с Егермейстером!!! Иду в неизвестность: {next_move}")
+                else:
+                    next_move = random.choice(neighbors)
+                    print(f"!!! РИСКУЮ !!! Иду наугад по соседям: {next_move}")
+        # логика сборса поумнее:
+        # если мы шагнули в клетку, где еще не были — агент успокаивается.
+        if next_move not in self.visited:
+            self.stuck_count = 0
 
         # Делаем ход
         self.x, self.y = next_move
