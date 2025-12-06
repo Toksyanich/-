@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox
 import os
+import sys
 import main  # Твой файл логики
 
 # --- НАСТРОЙКИ ---
@@ -120,8 +121,14 @@ class WumpusGUI:
     # ----------------------------
 
     def load_assets(self):
-        """Загрузка картинок"""
-        base_dir = os.path.dirname(os.path.abspath(__file__))
+        """Загрузка картинок (С поддержкой EXE)"""
+        # Проверяем, запущены ли мы как EXE или как скрипт
+        if getattr(sys, 'frozen', False):
+            # Если EXE — берем путь к временной папке
+            base_dir = sys._MEIPASS
+        else:
+            # Если скрипт — берем путь к файлу
+            base_dir = os.path.dirname(os.path.abspath(__file__))
         icons_dir = os.path.join(base_dir, "icons")
 
         image_files = {
